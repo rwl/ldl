@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 const UNKNOWN: i32 = -1;
 const USED: bool = true;
 const UNUSED: bool = false;
