@@ -369,3 +369,59 @@ pub fn ltsolve(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[f64], x: &mut [f64]) {
         x[i as usize] = val;
     }
 }
+
+pub fn factor_solve(a_n: i32, a_p: &[i32], a_i: &[i32], a_x: &[f64], b: &mut [f64]) -> i32 {
+    let l_n = a_n;
+
+    // Pre-factorisation memory allocations //
+
+    // These can happen *before* the etree is calculated
+    // since the sizes are not sparsity pattern specific.
+
+    // For the elimination tree.
+    let mut etree_ = vec![0; a_n as usize];
+    let mut l_nz = vec![0; a_n as usize];
+
+    // For the L factors. Li and Lx are sparsity dependent
+    // so must be done after the etree is constructed.
+    let mut l_p = vec![0; a_n as usize + 1];
+    let mut d = vec![0.0; a_n as usize];
+    let mut d_inv = vec![0.0; a_n as usize];
+
+    // Working memory. Note that both the etree and factor
+    // calls requires a working vector of int, with
+    // the factor function requiring 3*An elements and the
+    // etree only An elements. Just allocate the larger
+    // amount here and use it in both places.
+    let mut iwork = vec![0; 3 * a_n as usize];
+    let mut bwork = vec![false; a_n as usize];
+    let mut fwork = vec![0.0; a_n as usize];
+
+    // Elimination tree calculation //
+
+    let sum_l_nz = etree(a_n, &a_p, &a_i, &mut iwork, &mut l_nz, &mut etree_);
+
+    // Not perfect triu A = bomb.
+    if sum_l_nz < 0 {
+        return sum_l_nz;
+    }
+
+    // LDL factorisation //
+
+    let mut l_i = vec![0; sum_l_nz as usize];
+    let mut l_x = vec![0.0; sum_l_nz as usize];
+
+    let factor_status = factor(
+        a_n, &a_p, &a_i, &a_x, &mut l_p, &mut l_i, &mut l_x, &mut d, &mut d_inv, &mut l_nz,
+        &etree_, &mut bwork, &mut iwork, &mut fwork,
+    );
+    if factor_status < 0 {
+        return factor_status;
+    }
+
+    // Solve //
+
+    solve(l_n, &l_p, &l_i, &l_x, &d_inv, b);
+
+    0
+}
