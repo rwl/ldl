@@ -1,4 +1,5 @@
 use crate::factor_solve;
+use num_traits::Float;
 
 const TESTS_TOL: f64 = 1e-4;
 
@@ -24,6 +25,32 @@ fn basic() {
     assert!(status >= 0, "Factorisation failed");
     assert!(
         vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL,
+        "Solve accuracy failed"
+    );
+}
+
+#[test]
+fn basic_f32() {
+    let a_n: i32 = 10;
+    let a_p: Vec<i32> = vec![0, 1, 2, 4, 5, 6, 8, 10, 12, 14, 17];
+    let a_i: Vec<i32> = vec![0, 1, 1, 2, 3, 4, 1, 5, 0, 6, 3, 7, 6, 8, 1, 2, 9];
+    let a_x: Vec<f32> = vec![
+        1.0, 0.460641, -0.121189, 0.417928, 0.177828, 0.1, -0.0290058, -1.0, 0.350321, -0.441092,
+        -0.0845395, -0.316228, 0.178663, -0.299077, 0.182452, -1.56506, -0.1,
+    ];
+    let mut b: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0];
+
+    // RHS and solution to Ax = b
+    let xsol: Vec<f32> = vec![
+        10.2171, 3.9416, -5.69096, 9.28661, 50.0, -6.11433, -26.3104, -27.7809, -45.8099, -3.74178,
+    ];
+
+    // x replaces b during solve
+    let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
+
+    assert!(status >= 0, "Factorisation failed");
+    assert!(
+        vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL as f32,
         "Solve accuracy failed"
     );
 }
@@ -197,8 +224,8 @@ fn zero_on_diag() {
     );
 }
 
-fn vec_diff_norm(x: &[f64], y: &[f64], len: i32) -> f64 {
-    let mut max_diff = 0.0;
+fn vec_diff_norm<S: Float>(x: &[S], y: &[S], len: i32) -> S {
+    let mut max_diff = S::zero();
     for i in 0..len {
         let el_diff = x[i as usize] - y[i as usize];
         max_diff = if el_diff > max_diff {

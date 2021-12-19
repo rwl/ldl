@@ -1,5 +1,9 @@
+extern crate num_traits;
+
 #[cfg(test)]
 mod tests;
+
+use num_traits::{Float, NumAssignOps};
 
 const UNKNOWN: i32 = -1;
 const USED: bool = true;
@@ -136,21 +140,21 @@ pub fn etree(
 /// Returns a count of the number of positive elements in `D`.  
 /// Returns -1 and exits immediately if any element of `D` evaluates
 /// exactly to zero (matrix is not quasidefinite or otherwise LDL factorisable)
-pub fn factor(
+pub fn factor<S: Float + NumAssignOps>(
     n: i32,
     a_p: &[i32],
     a_i: &[i32],
-    a_x: &[f64],
+    a_x: &[S],
     l_p: &mut [i32],
     l_i: &mut [i32],
-    l_x: &mut [f64],
-    d: &mut [f64],
-    d_inv: &mut [f64],
+    l_x: &mut [S],
+    d: &mut [S],
+    d_inv: &mut [S],
     l_nz: &[i32],
     etree: &[i32],
     bwork: &mut [bool],
     iwork: &mut [i32],
-    fwork: &mut [f64],
+    fwork: &mut [S],
 ) -> i32 {
     let mut nnz_y: i32;
     let mut bidx: i32;
@@ -178,20 +182,20 @@ pub fn factor(
         // in each column of L, the next available space
         // to start is just the first space in the column
         y_markers[i] = UNUSED;
-        y_vals[i] = 0.0;
-        d[i] = 0.0;
+        y_vals[i] = S::zero();
+        d[i] = S::zero();
         l_next_space_in_col[i] = l_p[i];
     }
 
     // First element of the diagonal D.
     d[0] = a_x[0];
-    if d[0] == 0.0 {
+    if d[0] == S::zero() {
         return -1;
     }
-    if d[0] > 0.0 {
+    if d[0] > S::zero() {
         positive_values_in_d += 1;
     }
-    d_inv[0] = 1.0 / d[0];
+    d_inv[0] = S::one() / d[0];
 
     // Start from 1 here. The upper LH corner is trivially 0
     // in L b/c we are only computing the subdiagonal elements.
@@ -287,22 +291,22 @@ pub fn factor(
 
             // Reset the yvalues and indices back to zero and UNUSED
             // once I'm done with them.
-            y_vals[cidx as usize] = 0.0;
+            y_vals[cidx as usize] = S::zero();
             y_markers[cidx as usize] = UNUSED;
         }
 
         // Maintain a count of the positive entries
         // in D.  If we hit a zero, we can't factor
         // this matrix, so abort
-        if d[k as usize] == 0.0 {
+        if d[k as usize] == S::zero() {
             return -1;
         }
-        if d[k as usize] > 0.0 {
+        if d[k as usize] > S::zero() {
             positive_values_in_d += 1;
         }
 
         // Compute the inverse of the diagonal.
-        d_inv[k as usize] = 1.0 / d[k as usize];
+        d_inv[k as usize] = S::one() / d[k as usize];
     }
 
     positive_values_in_d
@@ -321,7 +325,14 @@ pub fn factor(
 /// * `l_x` - data of `L`.  Has `l_p[n]` elements
 /// * `d_inv` - reciprocal of `D`.  Length is `n`
 /// * `x` - initialized to `b`.  Equal to `x` on return
-pub fn solve(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[f64], d_inv: &[f64], x: &mut [f64]) {
+pub fn solve<S: Float + NumAssignOps>(
+    n: i32,
+    l_p: &[i32],
+    l_i: &[i32],
+    l_x: &[S],
+    d_inv: &[S],
+    x: &mut [S],
+) {
     lsolve(n, l_p, l_i, l_x, x);
     for i in 0..n {
         x[i as usize] *= d_inv[i as usize];
@@ -341,7 +352,7 @@ pub fn solve(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[f64], d_inv: &[f64], x: &m
 /// * `l_i` - row indices of `L`.  Has `l_p[n]` elements
 /// * `l_x` - data of `L`.  Has `l_p[n]` elements
 /// * `x` - initialized to `b`.  Equal to `x` on return
-pub fn lsolve(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[f64], x: &mut [f64]) {
+pub fn lsolve<S: Float + NumAssignOps>(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[S], x: &mut [S]) {
     for i in 0..n {
         let val = x[i as usize];
         for j in l_p[i as usize]..l_p[i as usize + 1] {
@@ -362,7 +373,7 @@ pub fn lsolve(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[f64], x: &mut [f64]) {
 /// * `l_i` - row indices of `L`.  Has `l_p[n]` elements
 /// * `l_x` - data of `L`.  Has `l_p[n]` elements
 /// * `x` - initialized to `b`.  Equal to `x` on return
-pub fn ltsolve(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[f64], x: &mut [f64]) {
+pub fn ltsolve<S: Float + NumAssignOps>(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[S], x: &mut [S]) {
     for i in (0..=n - 1).rev() {
         //for(i = n-1; i>=0; i--){
         let mut val = x[i as usize];
@@ -373,7 +384,13 @@ pub fn ltsolve(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[f64], x: &mut [f64]) {
     }
 }
 
-pub fn factor_solve(a_n: i32, a_p: &[i32], a_i: &[i32], a_x: &[f64], b: &mut [f64]) -> i32 {
+pub fn factor_solve<S: Float + NumAssignOps>(
+    a_n: i32,
+    a_p: &[i32],
+    a_i: &[i32],
+    a_x: &[S],
+    b: &mut [S],
+) -> i32 {
     let l_n = a_n;
 
     // Pre-factorisation memory allocations //
@@ -388,8 +405,8 @@ pub fn factor_solve(a_n: i32, a_p: &[i32], a_i: &[i32], a_x: &[f64], b: &mut [f6
     // For the L factors. Li and Lx are sparsity dependent
     // so must be done after the etree is constructed.
     let mut l_p = vec![0; a_n as usize + 1];
-    let mut d = vec![0.0; a_n as usize];
-    let mut d_inv = vec![0.0; a_n as usize];
+    let mut d: Vec<S> = vec![S::zero(); a_n as usize];
+    let mut d_inv: Vec<S> = vec![S::zero(); a_n as usize];
 
     // Working memory. Note that both the etree and factor
     // calls requires a working vector of int, with
@@ -398,7 +415,7 @@ pub fn factor_solve(a_n: i32, a_p: &[i32], a_i: &[i32], a_x: &[f64], b: &mut [f6
     // amount here and use it in both places.
     let mut iwork = vec![0; 3 * a_n as usize];
     let mut bwork = vec![false; a_n as usize];
-    let mut fwork = vec![0.0; a_n as usize];
+    let mut fwork: Vec<S> = vec![S::zero(); a_n as usize];
 
     // Elimination tree calculation //
 
@@ -412,7 +429,7 @@ pub fn factor_solve(a_n: i32, a_p: &[i32], a_i: &[i32], a_x: &[f64], b: &mut [f6
     // LDL factorisation //
 
     let mut l_i = vec![0; sum_l_nz as usize];
-    let mut l_x = vec![0.0; sum_l_nz as usize];
+    let mut l_x: Vec<S> = vec![S::zero(); sum_l_nz as usize];
 
     let factor_status = factor(
         a_n, &a_p, &a_i, &a_x, &mut l_p, &mut l_i, &mut l_x, &mut d, &mut d_inv, &mut l_nz,
