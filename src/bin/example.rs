@@ -3,9 +3,9 @@ extern crate ldl;
 use ldl::*;
 
 fn main() {
-    let a_n: i32 = 10;
-    let a_p: Vec<i32> = vec![0, 1, 2, 4, 5, 6, 8, 10, 12, 14, 17];
-    let a_i: Vec<i32> = vec![0, 1, 1, 2, 3, 4, 1, 5, 0, 6, 3, 7, 6, 8, 1, 2, 9];
+    let a_n: usize = 10;
+    let a_p: Vec<usize> = vec![0, 1, 2, 4, 5, 6, 8, 10, 12, 14, 17];
+    let a_i: Vec<usize> = vec![0, 1, 1, 2, 3, 4, 1, 5, 0, 6, 3, 7, 6, 8, 1, 2, 9];
     let a_x: Vec<f64> = vec![
         1.0, 0.460641, -0.121189, 0.417928, 0.177828, 0.1, -0.0290058, -1.0, 0.350321, -0.441092,
         -0.0845395, -0.316228, 0.178663, -0.299077, 0.182452, -1.56506, -0.1,
@@ -40,7 +40,7 @@ fn main() {
 
     // Elimination tree calculation //
 
-    let sum_l_nz = etree(a_n, &a_p, &a_i, &mut iwork, &mut l_nz, &mut etree_);
+    let sum_l_nz = etree(a_n, &a_p, &a_i, &mut iwork, &mut l_nz, &mut etree_).unwrap();
 
     // LDL factorisation //
 
@@ -50,7 +50,8 @@ fn main() {
     factor(
         a_n, &a_p, &a_i, &a_x, &mut l_p, &mut l_i, &mut l_x, &mut d, &mut d_inv, &mut l_nz,
         &etree_, &mut bwork, &mut iwork, &mut fwork,
-    );
+    )
+    .unwrap();
 
     // Solve //
 

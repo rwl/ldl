@@ -5,7 +5,7 @@ mod tests;
 
 use num_traits::{Float, NumAssignOps};
 
-const UNKNOWN: i32 = -1;
+const UNKNOWN: isize = -1;
 const USED: bool = true;
 const UNUSED: bool = false;
 
@@ -47,15 +47,13 @@ const UNUSED: bool = false;
 /// Returns -1 if the input is not triu or has an empty column.
 /// Returns -2 if the return value overflows.
 pub fn etree(
-    n: i32,
-    a_p: &[i32],
-    a_i: &[i32],
-    work: &mut [i32],
-    l_nz: &mut [i32],
-    etree: &mut [i32],
-) -> i32 {
-    let mut sum_l_nz: i32;
-
+    n: usize,
+    a_p: &[usize],
+    a_i: &[usize],
+    work: &mut [usize],
+    l_nz: &mut [usize],
+    etree: &mut [isize],
+) -> Result<usize, isize> {
     for i in 0..n {
         // Zero out Lnz and work. Set all etree values to unknown.
         work[i as usize] = 0;
@@ -65,7 +63,7 @@ pub fn etree(
         // Abort if A doesn't have at least one entry
         // one entry in every column.
         if a_p[i as usize] == a_p[i as usize + 1] {
-            return -1;
+            return Err(-1);
         }
     }
 
@@ -75,15 +73,15 @@ pub fn etree(
             let mut i = a_i[p as usize];
             if i > j {
                 // Abort if entries on lower triangle.
-                return -1;
+                return Err(-1);
             }
             while work[i as usize] != j {
                 if etree[i as usize] == UNKNOWN {
-                    etree[i as usize] = j;
+                    etree[i as usize] = j as isize;
                 }
                 l_nz[i as usize] += 1; // nonzeros in this column
                 work[i as usize] = j;
-                i = etree[i as usize];
+                i = etree[i as usize] as usize;
             }
         }
     }
@@ -92,17 +90,16 @@ pub fn etree(
     // space is required to store Li and Lx.  Return
     // error code -2 if the nonzero count will overflow
     // its integer type.
-    sum_l_nz = 0;
+    let mut sum_l_nz: usize = 0;
     for i in 0..n {
-        if sum_l_nz > i32::MAX - l_nz[i as usize] {
-            sum_l_nz = -2;
-            break;
+        if sum_l_nz > usize::MAX - l_nz[i as usize] {
+            return Err(-2);
         } else {
             sum_l_nz += l_nz[i as usize];
         }
     }
 
-    return sum_l_nz;
+    Ok(sum_l_nz)
 }
 
 /// Compute an LDL decomposition for a quasidefinite matrix
@@ -141,29 +138,29 @@ pub fn etree(
 /// Returns -1 and exits immediately if any element of `D` evaluates
 /// exactly to zero (matrix is not quasidefinite or otherwise LDL factorisable)
 pub fn factor<S: Float + NumAssignOps>(
-    n: i32,
-    a_p: &[i32],
-    a_i: &[i32],
+    n: usize,
+    a_p: &[usize],
+    a_i: &[usize],
     a_x: &[S],
-    l_p: &mut [i32],
-    l_i: &mut [i32],
+    l_p: &mut [usize],
+    l_i: &mut [usize],
     l_x: &mut [S],
     d: &mut [S],
     d_inv: &mut [S],
-    l_nz: &[i32],
-    etree: &[i32],
+    l_nz: &[usize],
+    etree: &[isize],
     bwork: &mut [bool],
-    iwork: &mut [i32],
+    iwork: &mut [usize],
     fwork: &mut [S],
-) -> i32 {
-    let mut nnz_y: i32;
-    let mut bidx: i32;
-    let mut cidx: i32;
-    let mut next_idx: i32;
-    let mut nnz_e: i32;
-    let mut tmp_idx: i32;
+) -> Result<usize, isize> {
+    let mut nnz_y: usize;
+    let mut bidx: usize;
+    let mut cidx: usize;
+    let mut next_idx: isize;
+    let mut nnz_e: usize;
+    let mut tmp_idx: usize;
 
-    let mut positive_values_in_d: i32 = 0;
+    let mut positive_values_in_d: usize = 0;
 
     // Partition working memory into pieces.
     let y_markers = bwork;
@@ -190,7 +187,7 @@ pub fn factor<S: Float + NumAssignOps>(
     // First element of the diagonal D.
     d[0] = a_x[0];
     if d[0] == S::zero() {
-        return -1;
+        return Err(-1);
     }
     if d[0] > S::zero() {
         positive_values_in_d += 1;
@@ -231,24 +228,24 @@ pub fn factor<S: Float + NumAssignOps>(
             // Use the forward elimination tree to figure
             // out which elements must be eliminated after
             // this element of b.
-            next_idx = bidx;
+            next_idx = bidx as isize;
 
             if y_markers[next_idx as usize] == UNUSED {
                 // This y term not already visited.
 
                 y_markers[next_idx as usize] = USED; // I touched this one.
-                elim_buffer[0] = next_idx; // It goes at the start of the current list.
+                elim_buffer[0] = next_idx as usize; // It goes at the start of the current list.
                 nnz_e = 1; // Length of unvisited elimination path from here.
 
                 next_idx = etree[bidx as usize];
 
-                while next_idx != UNKNOWN && next_idx < k {
+                while next_idx != UNKNOWN && (next_idx as usize) < k {
                     if y_markers[next_idx as usize] == USED {
                         break;
                     }
 
                     y_markers[next_idx as usize] = USED; // I touched this one.
-                    elim_buffer[nnz_e as usize] = next_idx; // It goes in the current list.
+                    elim_buffer[nnz_e as usize] = next_idx as usize; // It goes in the current list.
                     nnz_e += 1; // The list is one longer than before.
                     next_idx = etree[next_idx as usize]; // One step further along tree.
                 }
@@ -265,7 +262,9 @@ pub fn factor<S: Float + NumAssignOps>(
         }
 
         // This for loop places nonzeros values in the k^th row.
-        for i in (0..=(nnz_y - 1)).rev() {
+        let mut i: isize = nnz_y as isize - 1;
+        while i >= 0 {
+            // for i in (0..=(nnz_y - 1)).rev() {
             // for(i = (nnzY-1); i >=0; i--){
 
             // Which column are we working on?
@@ -293,13 +292,15 @@ pub fn factor<S: Float + NumAssignOps>(
             // once I'm done with them.
             y_vals[cidx as usize] = S::zero();
             y_markers[cidx as usize] = UNUSED;
+
+            i -= 1;
         }
 
         // Maintain a count of the positive entries
         // in D.  If we hit a zero, we can't factor
         // this matrix, so abort
         if d[k as usize] == S::zero() {
-            return -1;
+            return Err(-1);
         }
         if d[k as usize] > S::zero() {
             positive_values_in_d += 1;
@@ -309,7 +310,7 @@ pub fn factor<S: Float + NumAssignOps>(
         d_inv[k as usize] = S::one() / d[k as usize];
     }
 
-    positive_values_in_d
+    Ok(positive_values_in_d)
 }
 
 /// Solves `LDL'x = b`
@@ -326,9 +327,9 @@ pub fn factor<S: Float + NumAssignOps>(
 /// * `d_inv` - reciprocal of `D`.  Length is `n`
 /// * `x` - initialized to `b`.  Equal to `x` on return
 pub fn solve<S: Float + NumAssignOps>(
-    n: i32,
-    l_p: &[i32],
-    l_i: &[i32],
+    n: usize,
+    l_p: &[usize],
+    l_i: &[usize],
     l_x: &[S],
     d_inv: &[S],
     x: &mut [S],
@@ -352,7 +353,13 @@ pub fn solve<S: Float + NumAssignOps>(
 /// * `l_i` - row indices of `L`.  Has `l_p[n]` elements
 /// * `l_x` - data of `L`.  Has `l_p[n]` elements
 /// * `x` - initialized to `b`.  Equal to `x` on return
-pub fn lsolve<S: Float + NumAssignOps>(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[S], x: &mut [S]) {
+pub fn lsolve<S: Float + NumAssignOps>(
+    n: usize,
+    l_p: &[usize],
+    l_i: &[usize],
+    l_x: &[S],
+    x: &mut [S],
+) {
     for i in 0..n {
         let val = x[i as usize];
         for j in l_p[i as usize]..l_p[i as usize + 1] {
@@ -373,7 +380,13 @@ pub fn lsolve<S: Float + NumAssignOps>(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[
 /// * `l_i` - row indices of `L`.  Has `l_p[n]` elements
 /// * `l_x` - data of `L`.  Has `l_p[n]` elements
 /// * `x` - initialized to `b`.  Equal to `x` on return
-pub fn ltsolve<S: Float + NumAssignOps>(n: i32, l_p: &[i32], l_i: &[i32], l_x: &[S], x: &mut [S]) {
+pub fn ltsolve<S: Float + NumAssignOps>(
+    n: usize,
+    l_p: &[usize],
+    l_i: &[usize],
+    l_x: &[S],
+    x: &mut [S],
+) {
     for i in (0..=n - 1).rev() {
         //for(i = n-1; i>=0; i--){
         let mut val = x[i as usize];
@@ -385,12 +398,12 @@ pub fn ltsolve<S: Float + NumAssignOps>(n: i32, l_p: &[i32], l_i: &[i32], l_x: &
 }
 
 pub fn factor_solve<S: Float + NumAssignOps>(
-    a_n: i32,
-    a_p: &[i32],
-    a_i: &[i32],
+    a_n: usize,
+    a_p: &[usize],
+    a_i: &[usize],
     a_x: &[S],
     b: &mut [S],
-) -> i32 {
+) -> Result<(), isize> {
     let l_n = a_n;
 
     // Pre-factorisation memory allocations //
@@ -399,12 +412,12 @@ pub fn factor_solve<S: Float + NumAssignOps>(
     // since the sizes are not sparsity pattern specific.
 
     // For the elimination tree.
-    let mut etree_ = vec![0; a_n as usize];
-    let mut l_nz = vec![0; a_n as usize];
+    let mut etree_: Vec<isize> = vec![0; a_n as usize];
+    let mut l_nz: Vec<usize> = vec![0; a_n as usize];
 
     // For the L factors. Li and Lx are sparsity dependent
     // so must be done after the etree is constructed.
-    let mut l_p = vec![0; a_n as usize + 1];
+    let mut l_p: Vec<usize> = vec![0; a_n as usize + 1];
     let mut d: Vec<S> = vec![S::zero(); a_n as usize];
     let mut d_inv: Vec<S> = vec![S::zero(); a_n as usize];
 
@@ -413,35 +426,27 @@ pub fn factor_solve<S: Float + NumAssignOps>(
     // the factor function requiring 3*An elements and the
     // etree only An elements. Just allocate the larger
     // amount here and use it in both places.
-    let mut iwork = vec![0; 3 * a_n as usize];
-    let mut bwork = vec![false; a_n as usize];
+    let mut iwork: Vec<usize> = vec![0; 3 * a_n as usize];
+    let mut bwork: Vec<bool> = vec![false; a_n as usize];
     let mut fwork: Vec<S> = vec![S::zero(); a_n as usize];
 
     // Elimination tree calculation //
 
-    let sum_l_nz = etree(a_n, &a_p, &a_i, &mut iwork, &mut l_nz, &mut etree_);
-
-    // Not perfect triu A = bomb.
-    if sum_l_nz < 0 {
-        return sum_l_nz;
-    }
+    let sum_l_nz = etree(a_n, &a_p, &a_i, &mut iwork, &mut l_nz, &mut etree_)?;
 
     // LDL factorisation //
 
     let mut l_i = vec![0; sum_l_nz as usize];
     let mut l_x: Vec<S> = vec![S::zero(); sum_l_nz as usize];
 
-    let factor_status = factor(
+    factor(
         a_n, &a_p, &a_i, &a_x, &mut l_p, &mut l_i, &mut l_x, &mut d, &mut d_inv, &mut l_nz,
         &etree_, &mut bwork, &mut iwork, &mut fwork,
-    );
-    if factor_status < 0 {
-        return factor_status;
-    }
+    )?;
 
     // Solve //
 
     solve(l_n, &l_p, &l_i, &l_x, &d_inv, b);
 
-    0
+    Ok(())
 }

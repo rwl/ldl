@@ -5,9 +5,9 @@ const TESTS_TOL: f64 = 1e-4;
 
 #[test]
 fn basic() {
-    let a_n: i32 = 10;
-    let a_p: Vec<i32> = vec![0, 1, 2, 4, 5, 6, 8, 10, 12, 14, 17];
-    let a_i: Vec<i32> = vec![0, 1, 1, 2, 3, 4, 1, 5, 0, 6, 3, 7, 6, 8, 1, 2, 9];
+    let a_n: usize = 10;
+    let a_p: Vec<usize> = vec![0, 1, 2, 4, 5, 6, 8, 10, 12, 14, 17];
+    let a_i: Vec<usize> = vec![0, 1, 1, 2, 3, 4, 1, 5, 0, 6, 3, 7, 6, 8, 1, 2, 9];
     let a_x: Vec<f64> = vec![
         1.0, 0.460641, -0.121189, 0.417928, 0.177828, 0.1, -0.0290058, -1.0, 0.350321, -0.441092,
         -0.0845395, -0.316228, 0.178663, -0.299077, 0.182452, -1.56506, -0.1,
@@ -22,7 +22,7 @@ fn basic() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status >= 0, "Factorisation failed");
+    assert!(status.is_ok(), "Factorisation failed");
     assert!(
         vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL,
         "Solve accuracy failed"
@@ -31,9 +31,9 @@ fn basic() {
 
 #[test]
 fn basic_f32() {
-    let a_n: i32 = 10;
-    let a_p: Vec<i32> = vec![0, 1, 2, 4, 5, 6, 8, 10, 12, 14, 17];
-    let a_i: Vec<i32> = vec![0, 1, 1, 2, 3, 4, 1, 5, 0, 6, 3, 7, 6, 8, 1, 2, 9];
+    let a_n: usize = 10;
+    let a_p: Vec<usize> = vec![0, 1, 2, 4, 5, 6, 8, 10, 12, 14, 17];
+    let a_i: Vec<usize> = vec![0, 1, 1, 2, 3, 4, 1, 5, 0, 6, 3, 7, 6, 8, 1, 2, 9];
     let a_x: Vec<f32> = vec![
         1.0, 0.460641, -0.121189, 0.417928, 0.177828, 0.1, -0.0290058, -1.0, 0.350321, -0.441092,
         -0.0845395, -0.316228, 0.178663, -0.299077, 0.182452, -1.56506, -0.1,
@@ -48,7 +48,7 @@ fn basic_f32() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status >= 0, "Factorisation failed");
+    assert!(status.is_ok(), "Factorisation failed");
     assert!(
         vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL as f32,
         "Solve accuracy failed"
@@ -58,8 +58,8 @@ fn basic_f32() {
 #[test]
 fn identity() {
     // A matrix data
-    let a_p: Vec<i32> = vec![0, 1, 2, 3, 4];
-    let a_i: Vec<i32> = vec![0, 1, 2, 3];
+    let a_p: Vec<usize> = vec![0, 1, 2, 3, 4];
+    let a_i: Vec<usize> = vec![0, 1, 2, 3];
     let a_x: Vec<f64> = vec![1.0, 1.0, 1.0, 1.0];
     let a_n = 4;
 
@@ -70,7 +70,7 @@ fn identity() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status >= 0, "Factorisation failed");
+    assert!(status.is_ok(), "Factorisation failed");
     assert!(
         vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL,
         "Solve accuracy failed"
@@ -99,7 +99,7 @@ fn osqp_kkt() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status >= 0, "Factorisation failed");
+    assert!(status.is_ok(), "Factorisation failed");
     assert!(
         vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL,
         "Solve accuracy failed"
@@ -120,7 +120,7 @@ fn rank_deficient() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status < 0, "Rank deficiency not detected");
+    assert!(status.is_err(), "Rank deficiency not detected");
 }
 
 #[test]
@@ -138,7 +138,7 @@ fn singleton() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status >= 0, "Factorisation failed");
+    assert!(status.is_ok(), "Factorisation failed");
     assert!(
         vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL,
         "Solve accuracy failed"
@@ -159,7 +159,7 @@ fn sym_structure() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status < 0, "Fully symmetric input not detected");
+    assert!(status.is_err(), "Fully symmetric input not detected");
 }
 
 #[test]
@@ -176,7 +176,7 @@ fn tril_structure() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status < 0, "Tril input not detected");
+    assert!(status.is_err(), "Tril input not detected");
 }
 
 #[test]
@@ -194,7 +194,7 @@ fn two_by_two() {
     // x replaces b during solve
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status >= 0, "Factorisation failed");
+    assert!(status.is_ok(), "Factorisation failed");
     assert!(
         vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL,
         "Solve accuracy failed"
@@ -217,14 +217,14 @@ fn zero_on_diag() {
     // NB : this system is solvable, but not by LDL
     let status = factor_solve(a_n, &a_p, &a_i, &a_x, &mut b);
 
-    assert!(status >= 0, "Factorisation failed");
+    assert!(status.is_ok(), "Factorisation failed");
     assert!(
         vec_diff_norm(&b, &xsol, a_n) < TESTS_TOL,
         "Solve accuracy failed"
     );
 }
 
-fn vec_diff_norm<S: Float>(x: &[S], y: &[S], len: i32) -> S {
+fn vec_diff_norm<S: Float>(x: &[S], y: &[S], len: usize) -> S {
     let mut max_diff = S::zero();
     for i in 0..len {
         let el_diff = x[i as usize] - y[i as usize];
