@@ -3,12 +3,13 @@ extern crate num_traits;
 #[cfg(test)]
 mod tests;
 
-use num_traits::{Bounded, Float, FromPrimitive, NumAssignOps, PrimInt, Signed, ToPrimitive};
-use std::clone::Clone;
+use num_traits::{Bounded, Float, FromPrimitive, NumAssignOps, PrimInt, ToPrimitive};
 
-const UNKNOWN: isize = -1;
-const USED: bool = true;
-const UNUSED: bool = false;
+#[derive(Debug, PartialEq, Clone)]
+pub enum Marker {
+    Unused,
+    Used,
+}
 
 /// Compute the elimination tree for a quasidefinite matrix
 /// in compressed sparse column form, where the input matrix is
@@ -45,29 +46,26 @@ const UNUSED: bool = false;
 /// # Returns
 ///
 /// Sum of `Lnz` (i.e. total nonzeros in `L` below diagonal).
-/// Returns -1 if the input is not triu or has an empty column.
-/// Returns -2 if the return value overflows.
-pub fn etree<
-    I: PrimInt + NumAssignOps + Bounded + ToPrimitive + FromPrimitive,
-    S: Signed + ToPrimitive + FromPrimitive,
->(
+/// Returns 1 if the input is not triu or has an empty column.
+/// Returns 2 if the return value overflows.
+pub fn etree<I: PrimInt + NumAssignOps + Bounded + ToPrimitive + FromPrimitive>(
     n: I,
     a_p: &[I],
     a_i: &[I],
     work: &mut [I],
     l_nz: &mut [I],
-    etree: &mut [S],
-) -> Result<I, S> {
+    etree: &mut [Option<I>],
+) -> Result<I, I> {
     for i in 0..n.to_usize().unwrap() {
         // Zero out Lnz and work. Set all etree values to unknown.
         work[i] = I::zero();
         l_nz[i] = I::zero();
-        etree[i] = S::from_isize(UNKNOWN).unwrap();
+        etree[i] = None;
 
         // Abort if A doesn't have at least one entry
         // one entry in every column.
         if a_p[i] == a_p[i + 1] {
-            return Err(-S::one());
+            return Err(I::one());
         }
     }
 
@@ -77,15 +75,15 @@ pub fn etree<
             let mut i = a_i[p].to_usize().unwrap();
             if i > j {
                 // Abort if entries on lower triangle.
-                return Err(-S::one());
+                return Err(I::one());
             }
             while work[i].to_usize().unwrap() != j {
-                if etree[i] == S::from_isize(UNKNOWN).unwrap() {
-                    etree[i] = S::from_usize(j).unwrap();
+                if etree[i].is_none() {
+                    etree[i] = Some(I::from_usize(j).unwrap());
                 }
                 l_nz[i] += I::one(); // nonzeros in this column
                 work[i] = I::from_usize(j).unwrap();
-                i = etree[i].to_usize().unwrap();
+                i = etree[i].unwrap().to_usize().unwrap();
             }
         }
     }
@@ -97,7 +95,7 @@ pub fn etree<
     let mut sum_l_nz = I::zero();
     for i in 0..n.to_usize().unwrap() {
         if sum_l_nz > I::max_value() - l_nz[i] {
-            return Err(S::from_i32(-2).unwrap());
+            return Err(I::from(2).unwrap());
         } else {
             sum_l_nz += l_nz[i];
         }
@@ -139,13 +137,9 @@ pub fn etree<
 /// # Returns
 ///
 /// Returns a count of the number of positive elements in `D`.  
-/// Returns -1 and exits immediately if any element of `D` evaluates
+/// Returns 1 and exits immediately if any element of `D` evaluates
 /// exactly to zero (matrix is not quasidefinite or otherwise LDL factorisable)
-pub fn factor<
-    F: Float + NumAssignOps,
-    I: PrimInt + NumAssignOps + FromPrimitive + ToPrimitive,
-    S: Signed + FromPrimitive + ToPrimitive,
->(
+pub fn factor<F: Float + NumAssignOps, I: PrimInt + NumAssignOps + FromPrimitive + ToPrimitive>(
     n: I,
     a_p: &[I],
     a_i: &[I],
@@ -156,17 +150,17 @@ pub fn factor<
     d: &mut [F],
     d_inv: &mut [F],
     l_nz: &[I],
-    etree: &[S],
-    bwork: &mut [bool],
+    etree: &[Option<I>],
+    bwork: &mut [Marker],
     iwork: &mut [I],
     fwork: &mut [F],
-) -> Result<I, S> {
+) -> Result<I, I> {
     let un = n.to_usize().unwrap();
 
     let mut nnz_y: usize;
     let mut bidx: usize;
     let mut cidx: usize;
-    let mut next_idx: isize;
+    let mut next_idx: Option<usize>;
     let mut nnz_e: usize;
     let mut tmp_idx: usize;
 
@@ -188,7 +182,7 @@ pub fn factor<
         // Set all Yidx to be 'unused' initially
         // in each column of L, the next available space
         // to start is just the first space in the column
-        y_markers[i] = UNUSED;
+        y_markers[i] = Marker::Unused;
         y_vals[i] = F::zero();
         d[i] = F::zero();
         l_next_space_in_col[i] = l_p[i];
@@ -197,7 +191,7 @@ pub fn factor<
     // First element of the diagonal D.
     d[0] = a_x[0];
     if d[0] == F::zero() {
-        return Err(-S::one());
+        return Err(I::one());
     }
     if d[0] > F::zero() {
         positive_values_in_d += I::one();
@@ -238,26 +232,28 @@ pub fn factor<
             // Use the forward elimination tree to figure
             // out which elements must be eliminated after
             // this element of b.
-            next_idx = bidx as isize;
+            next_idx = Some(bidx);
 
-            if y_markers[next_idx as usize] == UNUSED {
+            if y_markers[next_idx.unwrap()] == Marker::Unused {
                 // This y term not already visited.
 
-                y_markers[next_idx as usize] = USED; // I touched this one.
-                elim_buffer[0] = I::from_isize(next_idx).unwrap(); // It goes at the start of the current list.
+                y_markers[next_idx.unwrap()] = Marker::Used; // I touched this one.
+                elim_buffer[0] = I::from(next_idx.unwrap()).unwrap(); // It goes at the start of the current list.
                 nnz_e = 1; // Length of unvisited elimination path from here.
 
-                next_idx = etree[bidx].to_isize().unwrap();
+                next_idx = etree[bidx].map(|next| next.to_usize().unwrap());
 
-                while next_idx != UNKNOWN && (next_idx as usize) < k {
-                    if y_markers[next_idx as usize] == USED {
+                while next_idx.is_some() && next_idx.unwrap() < k {
+                    if y_markers[next_idx.unwrap()] == Marker::Used {
                         break;
                     }
 
-                    y_markers[next_idx as usize] = USED; // I touched this one.
-                    elim_buffer[nnz_e] = I::from_usize(next_idx as usize).unwrap(); // It goes in the current list.
+                    y_markers[next_idx.unwrap()] = Marker::Used; // I touched this one.
+                    elim_buffer[nnz_e] = I::from_usize(next_idx.unwrap()).unwrap(); // It goes in the current list.
                     nnz_e += 1; // The list is one longer than before.
-                    next_idx = etree[next_idx as usize].to_isize().unwrap(); // One step further along tree.
+
+                    // One step further along tree.
+                    next_idx = etree[next_idx.unwrap()].map(|next| next.to_usize().unwrap());
                 }
 
                 // Now I put the buffered elimination list into
@@ -272,45 +268,47 @@ pub fn factor<
         }
 
         // This for loop places nonzeros values in the k^th row.
-        let mut i: isize = nnz_y as isize - 1;
-        while i >= 0 {
-            // for i in (0..=(nnz_y - 1)).rev() {
-            // for(i = (nnzY-1); i >=0; i--){
+        // let mut i: isize = nnz_y as isize - 1;
+        // while i >= 0 {
+        if nnz_y > 0 {
+            for i in (0..=(nnz_y - 1)).rev() {
+                // for(i = (nnzY-1); i >=0; i--){
 
-            // Which column are we working on?
-            cidx = y_idx[i as usize].to_usize().unwrap();
+                // Which column are we working on?
+                cidx = y_idx[i as usize].to_usize().unwrap();
 
-            // Loop along the elements in this
-            // column of L and subtract to solve to y.
-            tmp_idx = l_next_space_in_col[cidx].to_usize().unwrap();
-            let y_vals_cidx = y_vals[cidx];
-            for j in l_p[cidx].to_usize().unwrap()..tmp_idx {
-                y_vals[l_i[j].to_usize().unwrap()] -= l_x[j] * y_vals_cidx;
+                // Loop along the elements in this
+                // column of L and subtract to solve to y.
+                tmp_idx = l_next_space_in_col[cidx].to_usize().unwrap();
+                let y_vals_cidx = y_vals[cidx];
+                for j in l_p[cidx].to_usize().unwrap()..tmp_idx {
+                    y_vals[l_i[j].to_usize().unwrap()] -= l_x[j] * y_vals_cidx;
+                }
+
+                // Now I have the cidx^th element of y = L\b.
+                // so compute the corresponding element of
+                // this row of L and put it into the right place.
+                l_i[tmp_idx] = I::from_usize(k).unwrap();
+                l_x[tmp_idx] = y_vals_cidx * d_inv[cidx];
+
+                // D[k] -= yVals[cidx]*yVals[cidx]*Dinv[cidx];
+                d[k] -= y_vals_cidx * l_x[tmp_idx];
+                l_next_space_in_col[cidx] += I::one();
+
+                // Reset the yvalues and indices back to zero and UNUSED
+                // once I'm done with them.
+                y_vals[cidx] = F::zero();
+                y_markers[cidx] = Marker::Unused;
+
+                // i -= 1;
             }
-
-            // Now I have the cidx^th element of y = L\b.
-            // so compute the corresponding element of
-            // this row of L and put it into the right place.
-            l_i[tmp_idx] = I::from_usize(k).unwrap();
-            l_x[tmp_idx] = y_vals_cidx * d_inv[cidx];
-
-            // D[k] -= yVals[cidx]*yVals[cidx]*Dinv[cidx];
-            d[k] -= y_vals_cidx * l_x[tmp_idx];
-            l_next_space_in_col[cidx] += I::one();
-
-            // Reset the yvalues and indices back to zero and UNUSED
-            // once I'm done with them.
-            y_vals[cidx] = F::zero();
-            y_markers[cidx] = UNUSED;
-
-            i -= 1;
         }
 
         // Maintain a count of the positive entries
         // in D.  If we hit a zero, we can't factor
         // this matrix, so abort
         if d[k] == F::zero() {
-            return Err(-S::one());
+            return Err(I::one());
         }
         if d[k] > F::zero() {
             positive_values_in_d += I::one();
@@ -410,14 +408,13 @@ pub fn ltsolve<F: Float + NumAssignOps, I: PrimInt>(
 pub fn factor_solve<
     F: Float + NumAssignOps,
     I: PrimInt + NumAssignOps + FromPrimitive + ToPrimitive + Clone,
-    S: Signed + FromPrimitive + ToPrimitive + Clone,
 >(
     a_n: I,
     a_p: &[I],
     a_i: &[I],
     a_x: &[F],
     b: &mut [F],
-) -> Result<(), S> {
+) -> Result<(), I> {
     let un = a_n.to_usize().unwrap();
 
     let l_n = a_n;
@@ -428,7 +425,7 @@ pub fn factor_solve<
     // since the sizes are not sparsity pattern specific.
 
     // For the elimination tree.
-    let mut etree_: Vec<S> = vec![S::zero(); un];
+    let mut etree: Vec<Option<I>> = vec![None; un];
     let mut l_nz: Vec<I> = vec![I::zero(); un];
 
     // For the L factors. Li and Lx are sparsity dependent
@@ -443,12 +440,12 @@ pub fn factor_solve<
     // etree only An elements. Just allocate the larger
     // amount here and use it in both places.
     let mut iwork: Vec<I> = vec![I::zero(); 3 * un];
-    let mut bwork: Vec<bool> = vec![false; un];
+    let mut bwork: Vec<Marker> = vec![Marker::Unused; un];
     let mut fwork: Vec<F> = vec![F::zero(); un];
 
     // Elimination tree calculation //
 
-    let sum_l_nz = etree(a_n, a_p, a_i, &mut iwork, &mut l_nz, &mut etree_)?;
+    let sum_l_nz = crate::etree(a_n, a_p, a_i, &mut iwork, &mut l_nz, &mut etree)?;
 
     // LDL factorisation //
 
@@ -456,7 +453,7 @@ pub fn factor_solve<
     let mut l_x: Vec<F> = vec![F::zero(); sum_l_nz.to_usize().unwrap()];
 
     factor(
-        a_n, a_p, a_i, a_x, &mut l_p, &mut l_i, &mut l_x, &mut d, &mut d_inv, &l_nz, &etree_,
+        a_n, a_p, a_i, a_x, &mut l_p, &mut l_i, &mut l_x, &mut d, &mut d_inv, &l_nz, &etree,
         &mut bwork, &mut iwork, &mut fwork,
     )?;
 

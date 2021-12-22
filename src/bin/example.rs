@@ -18,7 +18,7 @@ fn main() {
     // since the sizes are not sparsity pattern specific
 
     // For the elimination tree
-    let mut etree = vec![0; a_n];
+    let mut etree = vec![None; a_n];
     let mut l_nz = vec![0; a_n];
 
     // For the L factors. Li and Lx are sparsity dependent
@@ -33,20 +33,19 @@ fn main() {
     // etree only An elements. Just allocate the larger
     // amount here and use it in both places
     let mut iwork = vec![0; 3 * a_n];
-    let mut bwork = vec![false; a_n];
+    let mut bwork = vec![ldl::Marker::Unused; a_n];
     let mut fwork = vec![0.0; a_n];
 
     // Elimination tree calculation //
 
-    let sum_l_nz =
-        ldl::etree::<usize, isize>(a_n, &a_p, &a_i, &mut iwork, &mut l_nz, &mut etree).unwrap();
+    let sum_l_nz = ldl::etree::<usize>(a_n, &a_p, &a_i, &mut iwork, &mut l_nz, &mut etree).unwrap();
 
     // LDL factorisation //
 
     let mut l_i = vec![0; sum_l_nz as usize];
     let mut l_x = vec![0.0; sum_l_nz as usize];
 
-    ldl::factor::<f64, usize, isize>(
+    ldl::factor::<f64, usize>(
         a_n, &a_p, &a_i, &a_x, &mut l_p, &mut l_i, &mut l_x, &mut d, &mut d_inv, &l_nz, &etree,
         &mut bwork, &mut iwork, &mut fwork,
     )

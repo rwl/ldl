@@ -20,7 +20,7 @@ fn basic() {
     ];
 
     // x replaces b during solve
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_ok(), "Factorisation failed");
     assert!(
@@ -46,7 +46,7 @@ fn basic_f32_i64() {
     ];
 
     // x replaces b during solve
-    let status = factor_solve::<f32, i64, i64>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f32, i64>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_ok(), "Factorisation failed");
     assert!(
@@ -68,7 +68,7 @@ fn identity() {
     let xsol = vec![2.0, 2.0, 2.0, 2.0];
 
     // x replaces b during solve
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_ok(), "Factorisation failed");
     assert!(
@@ -97,7 +97,7 @@ fn osqp_kkt() {
     ];
 
     // x replaces b during solve
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_ok(), "Factorisation failed");
     assert!(
@@ -118,7 +118,7 @@ fn rank_deficient() {
     let mut b = vec![1.0, 1.0];
 
     // x replaces b during solve
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_err(), "Rank deficiency not detected");
 }
@@ -136,7 +136,7 @@ fn singleton() {
     let xsol = vec![10.0];
 
     // x replaces b during solve
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_ok(), "Factorisation failed");
     assert!(
@@ -157,7 +157,7 @@ fn sym_structure() {
     let mut b = vec![1.0, 1.0];
 
     // x replaces b during solve
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_err(), "Fully symmetric input not detected");
 }
@@ -174,7 +174,7 @@ fn tril_structure() {
     let mut b = vec![1.0, 1.0];
 
     // x replaces b during solve
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_err(), "Tril input not detected");
 }
@@ -192,7 +192,7 @@ fn two_by_two() {
     let xsol = vec![3.0, -1.0];
 
     // x replaces b during solve
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_ok(), "Factorisation failed");
     assert!(
@@ -215,7 +215,7 @@ fn zero_on_diag() {
 
     // x replaces b during solve (should fill due to zero in middle)
     // NB : this system is solvable, but not by LDL
-    let status = factor_solve::<f64, usize, isize>(a_n, &a_p, &a_i, &a_x, &mut b);
+    let status = factor_solve::<f64, usize>(a_n, &a_p, &a_i, &a_x, &mut b);
 
     assert!(status.is_ok(), "Factorisation failed");
     assert!(
