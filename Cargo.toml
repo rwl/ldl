@@ -3,6 +3,9 @@ name = "ldl"
 version = "0.1.0"
 edition = "2018"
 description = "LDL factorisation for quasi-definite linear systems"
+repository = "https://github.com/rwl/ldl/"
+license = "Apache-2.0"
+categories = ["algorithms", "mathematics", "science"]
 
 [dependencies]
 num-traits = "0.2"
